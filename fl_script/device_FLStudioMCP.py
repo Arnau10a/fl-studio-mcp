@@ -3,19 +3,21 @@
 """FL Studio MIDI Controller Script for bidirectional MCP communication over SysEx."""
 
 import json
-import transport
-import mixer
+
 import channels
+import device
+import general
+import midi
+import mixer
 import patterns
 import playlist
 import plugins
+import transport
 import ui
-import general
-import device
-import midi
 
 SYSEX_HEADER = bytes([0xF0, 0x7D, 0x46, 0x4D])  # F0 7D 'F' 'M'
 CHUNK_PAYLOAD_SIZE = 512  # hex chars per SysEx chunk
+MAX_RX_BUFFERS = 32
 
 _rx_buffers = {}
 
@@ -36,7 +38,7 @@ def _send_sysex_json(payload_dict):
             SYSEX_HEADER
             + bytes([id_hi, id_lo, idx & 0x7F, total & 0x7F])
             + chunk.encode("ascii")
-            + b"\xF7"
+            + b"\xf7"
         )
         device.midiOutSysex(frame)
 
@@ -100,17 +102,19 @@ def _cmd_channels_list(_params):
                 plugin_name = plugins.getPluginName(i)
         except Exception:
             pass
-        items.append({
-            "index": i,
-            "name": channels.getChannelName(i),
-            "plugin": plugin_name,
-            "volume": round(channels.getChannelVolume(i), 4),
-            "pan": round(channels.getChannelPan(i), 4),
-            "muted": bool(channels.isChannelMuted(i)),
-            "solo": bool(channels.isChannelSolo(i)),
-            "mixer_track": channels.getTargetFxTrack(i),
-            "selected": bool(channels.isChannelSelected(i)),
-        })
+        items.append(
+            {
+                "index": i,
+                "name": channels.getChannelName(i),
+                "plugin": plugin_name,
+                "volume": round(channels.getChannelVolume(i), 4),
+                "pan": round(channels.getChannelPan(i), 4),
+                "muted": bool(channels.isChannelMuted(i)),
+                "solo": bool(channels.isChannelSolo(i)),
+                "mixer_track": channels.getTargetFxTrack(i),
+                "selected": bool(channels.isChannelSelected(i)),
+            }
+        )
     return {"channels": items}
 
 
@@ -189,17 +193,22 @@ def _cmd_patterns(params):
         count = patterns.patternCount()
         items = []
         for p in range(1, count + 1):
-            items.append({
-                "index": p,
-                "name": patterns.getPatternName(p),
-                "length": patterns.getPatternLength(p),
-                "active": p == patterns.patternNumber(),
-            })
+            items.append(
+                {
+                    "index": p,
+                    "name": patterns.getPatternName(p),
+                    "length": patterns.getPatternLength(p),
+                    "active": p == patterns.patternNumber(),
+                }
+            )
         return {"current": patterns.patternNumber(), "patterns": items}
     elif action == "select":
         p = int(params["index"])
         patterns.jumpToPattern(p)
-        return {"current": patterns.patternNumber(), "name": patterns.getPatternName(patterns.patternNumber())}
+        return {
+            "current": patterns.patternNumber(),
+            "name": patterns.getPatternName(patterns.patternNumber()),
+        }
     elif action == "rename":
         p = int(params.get("index", patterns.patternNumber()))
         patterns.setPatternName(p, str(params["name"]))
@@ -225,16 +234,18 @@ def _cmd_mixer_list(params):
                     fx.append({"slot": slot, "name": plugins.getPluginName(t, slot)})
             except Exception:
                 pass
-        tracks.append({
-            "index": t,
-            "name": mixer.getTrackName(t),
-            "volume": round(mixer.getTrackVolume(t), 4),
-            "pan": round(mixer.getTrackPan(t), 4),
-            "muted": bool(mixer.isTrackMuted(t)),
-            "solo": bool(mixer.isTrackSolo(t)),
-            "peak_lr": round(mixer.getTrackPeaks(t, 2), 4),
-            "effects": fx,
-        })
+        tracks.append(
+            {
+                "index": t,
+                "name": mixer.getTrackName(t),
+                "volume": round(mixer.getTrackVolume(t), 4),
+                "pan": round(mixer.getTrackPan(t), 4),
+                "muted": bool(mixer.isTrackMuted(t)),
+                "solo": bool(mixer.isTrackSolo(t)),
+                "peak_lr": round(mixer.getTrackPeaks(t, 2), 4),
+                "effects": fx,
+            }
+        )
     return {"tracks": tracks}
 
 
@@ -281,12 +292,14 @@ def _cmd_plugin_params(params):
         name = plugins.getParamName(p, idx, slot)
         if not name:
             continue
-        items.append({
-            "param_index": p,
-            "name": name,
-            "value": round(plugins.getParamValue(p, idx, slot), 4),
-            "display": plugins.getParamValueString(p, idx, slot),
-        })
+        items.append(
+            {
+                "param_index": p,
+                "name": name,
+                "value": round(plugins.getParamValue(p, idx, slot), 4),
+                "display": plugins.getParamValueString(p, idx, slot),
+            }
+        )
     return {
         "plugin": plugins.getPluginName(idx, slot),
         "total_params": count,
@@ -364,12 +377,14 @@ def _cmd_playlist_list(params):
     end = min(playlist.trackCount(), int(params.get("end", 32)))
     tracks = []
     for t in range(start, end + 1):
-        tracks.append({
-            "index": t,
-            "name": playlist.getTrackName(t),
-            "muted": bool(playlist.isTrackMuted(t)),
-            "solo": bool(playlist.isTrackSolo(t)),
-        })
+        tracks.append(
+            {
+                "index": t,
+                "name": playlist.getTrackName(t),
+                "muted": bool(playlist.isTrackMuted(t)),
+                "solo": bool(playlist.isTrackSolo(t)),
+            }
+        )
     return {"tracks": tracks}
 
 
@@ -452,6 +467,10 @@ def OnSysEx(event):
     chunk_idx = data[6] & 0x7F
     total_chunks = data[7] & 0x7F
     chunk_hex = data[8:-1].decode("ascii", errors="ignore")
+
+    if msg_id not in _rx_buffers and len(_rx_buffers) >= MAX_RX_BUFFERS:
+        oldest_key = next(iter(_rx_buffers))
+        _rx_buffers.pop(oldest_key, None)
 
     buf = _rx_buffers.setdefault(msg_id, {})
     buf[chunk_idx] = chunk_hex

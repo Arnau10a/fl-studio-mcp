@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import wave
+from pathlib import Path
 
 import mido
 import numpy as np
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-MIDI_OUT_DIR = BASE_DIR / "output" / "midi"
-SAMPLE_OUT_DIR = BASE_DIR / "output" / "samples"
+try:
+    from fl_studio_mcp.paths import get_midi_out_dir, get_sample_out_dir
+
+    MIDI_OUT_DIR = get_midi_out_dir()
+    SAMPLE_OUT_DIR = get_sample_out_dir()
+except ImportError:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    MIDI_OUT_DIR = BASE_DIR / "output" / "midi"
+    SAMPLE_OUT_DIR = BASE_DIR / "output" / "samples"
 
 BPM = 190.0
 TPB = 480  # ticks per quarter note
@@ -46,7 +52,9 @@ def _events_to_midi(
     return out_path
 
 
-def _add_note(events: list[tuple[int, str, int, int]], tick: int, note: int, dur: int, vel: int) -> None:
+def _add_note(
+    events: list[tuple[int, str, int, int]], tick: int, note: int, dur: int, vel: int
+) -> None:
     events.append((tick, "note_on", note, max(1, min(127, vel))))
     events.append((tick + max(10, dur), "note_off", note, 0))
 
@@ -66,7 +74,7 @@ def _build_kick_events() -> list[tuple[int, str, int, int]]:
 
     # Bars 9-16 (Break): silence
 
-    # Bars 17-24 (Build-Up): accelerating kicks, dead silence at bar 24 beats 3-4, surprise hit on last 16th
+    # Bars 17-24 (Build-Up): accelerating kicks, silence at bar 24 beats 3-4, surprise step 15 hit
     for bar in range(16, 24):
         base = bar * BAR_TICKS
         rel = bar - 16
@@ -82,7 +90,9 @@ def _build_kick_events() -> list[tuple[int, str, int, int]]:
         elif rel == 6:  # Bar 23: 16th notes
             for step in range(16):
                 _add_note(events, base + step * STEP_TICKS, c5, 95, 118)
-        elif rel == 7:  # Bar 24: beats 1-2 16ths, Fake Drop silence beats 3-4, surprise hit on step 15
+        elif (
+            rel == 7
+        ):  # Bar 24: beats 1-2 16ths, Fake Drop silence beats 3-4, surprise hit on step 15
             for step in range(8):
                 _add_note(events, base + step * STEP_TICKS, c5, 95, 122)
             _add_note(events, base + 15 * STEP_TICKS, f5, 100, 127)
@@ -91,12 +101,21 @@ def _build_kick_events() -> list[tuple[int, str, int, int]]:
     for bar in range(24, 36):
         base = bar * BAR_TICKS
         rel = bar - 24
-        if rel in (3, 7, 11):  # Bar 28, 32, 36: beats 1-2 4x4, beats 3-4 signature syncopated kick roll
+        if rel in (
+            3,
+            7,
+            11,
+        ):  # Bar 28, 32, 36: beats 1-2 4x4, beats 3-4 signature syncopated kick roll
             _add_note(events, base + 0 * TPB, c5, 220, 124)
             _add_note(events, base + 1 * TPB, c5, 220, 124)
             roll_steps = [
-                (8, c5, 120), (10, d_sharp5, 116), (11, c5, 112),
-                (12, f5, 124), (13, c5, 118), (14, d_sharp5, 122), (15, f5, 127),
+                (8, c5, 120),
+                (10, d_sharp5, 116),
+                (11, c5, 112),
+                (12, f5, 124),
+                (13, c5, 118),
+                (14, d_sharp5, 122),
+                (15, f5, 127),
             ]
             for st, note, vel in roll_steps:
                 _add_note(events, base + st * STEP_TICKS, note, 100, vel)
@@ -142,8 +161,14 @@ def _build_screech_events() -> list[tuple[int, str, int, int]]:
 
     # Bars 9-16 (Break atmospheric dark melody)
     break_phrase = [
-        (0, 77, 420), (4, 78, 420), (8, 77, 420), (12, 75, 420),
-        (16, 73, 420), (20, 72, 420), (24, 68, 420), (28, 72, 420),
+        (0, 77, 420),
+        (4, 78, 420),
+        (8, 77, 420),
+        (12, 75, 420),
+        (16, 73, 420),
+        (20, 72, 420),
+        (24, 68, 420),
+        (28, 72, 420),
     ]
     for rep in range(4):  # 2 bars per phrase x 4 = 8 bars (bars 9-16)
         base = (8 + rep * 2) * BAR_TICKS
@@ -159,14 +184,18 @@ def _build_screech_events() -> list[tuple[int, str, int, int]]:
             step_inc = 4 if rel < 4 else 2
             for st in range(0, 16, step_inc):
                 _add_note(events, base + st * STEP_TICKS, pitch, 140, 96 + rel * 4)
-        else:  # Bar 24: 16ths on beats 1-2, then silence, then solo screaming stab at beat 3.5 (step 14)
+        else:  # Bar 24: 16ths on beats 1-2, silence, then solo stab at beat 3.5 (step 14)
             for st in range(0, 8, 2):
                 _add_note(events, base + st * STEP_TICKS, 78, 120, 124)
             _add_note(events, base + 14 * STEP_TICKS, 89, 200, 127)
 
     # Bars 25-36 (Drop 1 — Straikerz bouncy screech riff)
     drop1_riff = [
-        (2, 65, 180), (6, 66, 180), (10, 65, 160), (13, 77, 150), (15, 78, 130),
+        (2, 65, 180),
+        (6, 66, 180),
+        (10, 65, 160),
+        (13, 77, 150),
+        (15, 78, 130),
     ]
     for bar in range(24, 36):
         base = bar * BAR_TICKS
@@ -176,7 +205,12 @@ def _build_screech_events() -> list[tuple[int, str, int, int]]:
 
     # Bars 37-48 (Drop 2 — Switch-Up octave-high relentless screech)
     drop2_riff = [
-        (0, 77, 140), (3, 78, 140), (6, 77, 140), (8, 84, 140), (11, 78, 140), (14, 77, 160),
+        (0, 77, 140),
+        (3, 78, 140),
+        (6, 77, 140),
+        (8, 84, 140),
+        (11, 78, 140),
+        (14, 77, 160),
     ]
     for bar in range(36, 48):
         base = bar * BAR_TICKS
@@ -351,13 +385,17 @@ def generate_straikerz_samples(bpm: float = BPM) -> dict[str, Path]:
     body = np.sin(2.0 * np.pi * np.cumsum(pitch_sweep) / sr)
     kloenk_raw = np.tanh((body * np.exp(-t / 0.24) + kloenk_ping) * 6.5)
     fade_out = np.minimum(1.0, (n_kick - np.arange(n_kick)) / (0.008 * sr))
-    kloenk_path = _write_wav(SAMPLE_OUT_DIR / "straikerz_kloenk_kick_190.wav", kloenk_raw * fade_out * 0.92, sr)
+    kloenk_path = _write_wav(
+        SAMPLE_OUT_DIR / "straikerz_kloenk_kick_190.wav", kloenk_raw * fade_out * 0.92, sr
+    )
 
     # 2. Zaag Kick (1 beat): aggressive saw-saturated punch + clipped sub
     saw_phase = (np.cumsum(np.full(n_kick, 56.0) + 220.0 * np.exp(-t / 0.012)) / sr) % 1.0
     saw = 2.0 * saw_phase - 1.0
     zaag_raw = np.tanh((0.55 * saw + 0.75 * body) * np.exp(-t / 0.22) * 8.0)
-    zaag_path = _write_wav(SAMPLE_OUT_DIR / "straikerz_zaag_kick_190.wav", zaag_raw * fade_out * 0.92, sr)
+    zaag_path = _write_wav(
+        SAMPLE_OUT_DIR / "straikerz_zaag_kick_190.wav", zaag_raw * fade_out * 0.92, sr
+    )
 
     # 3. 8-bar Build-Up Riser (white noise sweep + rising synth pitch)
     n_riser = int(sr * beat_s * 4 * 8)
@@ -368,7 +406,7 @@ def generate_straikerz_samples(bpm: float = BPM) -> dict[str, Path]:
     # Simple moving low-pass / brightness swell by mixing raw noise with rising sine/saw
     riser_freq = 110.0 * (2.0 ** (3.5 * prog))
     riser_tone = np.sin(2.0 * np.pi * np.cumsum(riser_freq) / sr)
-    env = (prog ** 1.8) * np.minimum(1.0, (n_riser - np.arange(n_riser)) / (0.015 * sr))
+    env = (prog**1.8) * np.minimum(1.0, (n_riser - np.arange(n_riser)) / (0.015 * sr))
     riser = np.tanh((0.65 * riser_tone + 0.55 * noise * prog) * 1.8) * env * 0.85
     riser_path = _write_wav(SAMPLE_OUT_DIR / "straikerz_riser_8bars_190.wav", riser, sr)
 
@@ -382,11 +420,21 @@ def generate_straikerz_samples(bpm: float = BPM) -> dict[str, Path]:
 def generate_all() -> dict[str, str]:
     """Generate all 5 48-bar MIDI tracks and 3 WAV samples."""
     files = {
-        "kick_midi": str(_events_to_midi(_build_kick_events(), MIDI_OUT_DIR / "straikerz_kick_48bars.mid")),
-        "screech_midi": str(_events_to_midi(_build_screech_events(), MIDI_OUT_DIR / "straikerz_screech_48bars.mid")),
-        "hoover_midi": str(_events_to_midi(_build_hoover_events(), MIDI_OUT_DIR / "straikerz_hoover_48bars.mid")),
-        "pad_midi": str(_events_to_midi(_build_pad_events(), MIDI_OUT_DIR / "straikerz_pad_48bars.mid")),
-        "perc_midi": str(_events_to_midi(_build_perc_events(), MIDI_OUT_DIR / "straikerz_perc_48bars.mid")),
+        "kick_midi": str(
+            _events_to_midi(_build_kick_events(), MIDI_OUT_DIR / "straikerz_kick_48bars.mid")
+        ),
+        "screech_midi": str(
+            _events_to_midi(_build_screech_events(), MIDI_OUT_DIR / "straikerz_screech_48bars.mid")
+        ),
+        "hoover_midi": str(
+            _events_to_midi(_build_hoover_events(), MIDI_OUT_DIR / "straikerz_hoover_48bars.mid")
+        ),
+        "pad_midi": str(
+            _events_to_midi(_build_pad_events(), MIDI_OUT_DIR / "straikerz_pad_48bars.mid")
+        ),
+        "perc_midi": str(
+            _events_to_midi(_build_perc_events(), MIDI_OUT_DIR / "straikerz_perc_48bars.mid")
+        ),
     }
     for k, v in generate_straikerz_samples().items():
         files[k] = str(v)
@@ -395,4 +443,5 @@ def generate_all() -> dict[str, str]:
 
 if __name__ == "__main__":
     import json
+
     print(json.dumps(generate_all(), indent=2))
