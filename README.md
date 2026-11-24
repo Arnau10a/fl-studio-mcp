@@ -74,7 +74,13 @@ Or point your MCP client to the server with `FL_MCP_MOCK=1`:
 
 ## Demo
 
-> *Tip: Record a 15-second screen capture of an AI assistant building a pattern and pressing Play in FL Studio and embed it here as `docs/demo.gif`.*
+![fl-studio-mcp demo](docs/demo.gif)
+
+Run the self-contained mock session from the demo yourself (no FL Studio required):
+
+```bash
+uv run python examples/demo_session.py
+```
 
 ---
 
