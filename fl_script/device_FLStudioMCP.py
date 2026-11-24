@@ -92,6 +92,26 @@ def _cmd_transport(params):
     }
 
 
+def _parse_color(value):
+    if isinstance(value, int):
+        return value
+    s = str(value).strip().lstrip("#")
+    if len(s) != 6:
+        raise ValueError(f"Expected #RRGGBB hex color or integer, got: {value}")
+    r = int(s[0:2], 16)
+    g = int(s[2:4], 16)
+    b = int(s[4:6], 16)
+    return (b << 16) | (g << 8) | r
+
+
+def _format_color(bgr_int):
+    v = int(bgr_int) & 0xFFFFFF
+    r = v & 0xFF
+    g = (v >> 8) & 0xFF
+    b = (v >> 16) & 0xFF
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
 def _cmd_channels_list(_params):
     count = channels.channelCount()
     items = []
@@ -113,6 +133,7 @@ def _cmd_channels_list(_params):
                 "solo": bool(channels.isChannelSolo(i)),
                 "mixer_track": channels.getTargetFxTrack(i),
                 "selected": bool(channels.isChannelSelected(i)),
+                "color": _format_color(channels.getChannelColor(i)),
             }
         )
     return {"channels": items}
@@ -126,6 +147,8 @@ def _cmd_channel_set(params):
         channels.setChannelVolume(idx, max(0.0, min(1.0, float(params["volume"]))))
     if "pan" in params:
         channels.setChannelPan(idx, max(-1.0, min(1.0, float(params["pan"]))))
+    if "color" in params:
+        channels.setChannelColor(idx, _parse_color(params["color"]))
     if "muted" in params:
         want = bool(params["muted"])
         if bool(channels.isChannelMuted(idx)) != want:
@@ -146,6 +169,7 @@ def _cmd_channel_set(params):
         "muted": bool(channels.isChannelMuted(idx)),
         "solo": bool(channels.isChannelSolo(idx)),
         "mixer_track": channels.getTargetFxTrack(idx),
+        "color": _format_color(channels.getChannelColor(idx)),
     }
 
 
@@ -240,8 +264,11 @@ def _cmd_mixer_list(params):
                 "name": mixer.getTrackName(t),
                 "volume": round(mixer.getTrackVolume(t), 4),
                 "pan": round(mixer.getTrackPan(t), 4),
+                "stereo_separation": round(mixer.getTrackStereoSeparation(t), 4),
                 "muted": bool(mixer.isTrackMuted(t)),
                 "solo": bool(mixer.isTrackSolo(t)),
+                "armed": bool(mixer.isTrackArmed(t)),
+                "color": _format_color(mixer.getTrackColor(t)),
                 "peak_lr": round(mixer.getTrackPeaks(t, 2), 4),
                 "effects": fx,
             }
@@ -257,6 +284,10 @@ def _cmd_mixer_set(params):
         mixer.setTrackVolume(t, max(0.0, min(1.0, float(params["volume"]))))
     if "pan" in params:
         mixer.setTrackPan(t, max(-1.0, min(1.0, float(params["pan"]))))
+    if "stereo_separation" in params:
+        mixer.setTrackStereoSeparation(t, max(-1.0, min(1.0, float(params["stereo_separation"]))))
+    if "color" in params:
+        mixer.setTrackColor(t, _parse_color(params["color"]))
     if "muted" in params:
         want = bool(params["muted"])
         if bool(mixer.isTrackMuted(t)) != want:
@@ -265,6 +296,10 @@ def _cmd_mixer_set(params):
         want = bool(params["solo"])
         if bool(mixer.isTrackSolo(t)) != want:
             mixer.soloTrack(t)
+    if "armed" in params:
+        want = bool(params["armed"])
+        if bool(mixer.isTrackArmed(t)) != want:
+            mixer.armTrack(t)
     if "route_to" in params:
         dst = int(params["route_to"])
         val = 1 if params.get("route_active", True) else 0
@@ -274,8 +309,11 @@ def _cmd_mixer_set(params):
         "name": mixer.getTrackName(t),
         "volume": round(mixer.getTrackVolume(t), 4),
         "pan": round(mixer.getTrackPan(t), 4),
+        "stereo_separation": round(mixer.getTrackStereoSeparation(t), 4),
         "muted": bool(mixer.isTrackMuted(t)),
         "solo": bool(mixer.isTrackSolo(t)),
+        "armed": bool(mixer.isTrackArmed(t)),
+        "color": _format_color(mixer.getTrackColor(t)),
     }
 
 

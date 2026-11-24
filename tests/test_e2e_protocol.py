@@ -45,6 +45,7 @@ def test_e2e_all_18_sysex_commands(mock_bridge: FLBridge) -> None:
             "name": "Straikerz Kick",
             "volume": 0.9,
             "pan": -0.2,
+            "color": "#FF9138",
             "muted": True,
             "mixer_track": 5,
             "select": True,
@@ -53,6 +54,7 @@ def test_e2e_all_18_sysex_commands(mock_bridge: FLBridge) -> None:
     assert ch_upd["name"] == "Straikerz Kick"
     assert ch_upd["muted"] is True
     assert ch_upd["mixer_track"] == 5
+    assert ch_upd["color"] == "#FF9138"
 
     # 5 & 6. step_sequencer & step_sequencer_get
     seq = mock_bridge.call(
@@ -82,9 +84,21 @@ def test_e2e_all_18_sysex_commands(mock_bridge: FLBridge) -> None:
     assert len(mix["tracks"]) == 8
     m_upd = mock_bridge.call(
         "mixer_set",
-        {"index": 1, "name": "Kick Bus", "volume": 0.85, "route_to": 0, "route_active": True},
+        {
+            "index": 1,
+            "name": "Kick Bus",
+            "volume": 0.85,
+            "stereo_separation": -0.5,
+            "armed": True,
+            "color": "#3FB950",
+            "route_to": 0,
+            "route_active": True,
+        },
     )
     assert m_upd["name"] == "Kick Bus"
+    assert m_upd["stereo_separation"] == -0.5
+    assert m_upd["armed"] is True
+    assert m_upd["color"] == "#3FB950"
     eq = mock_bridge.call(
         "mixer_eq", {"index": 1, "band": 0, "gain": 0.3, "frequency": 0.2, "bandwidth": 0.4}
     )

@@ -1,0 +1,76 @@
+"""FL Studio Piano Roll script for programmatic note/chord read & write via fl-studio-mcp."""
+
+import json
+import os
+import flpianoroll as flp
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_REQ_PATH = os.path.join(_SCRIPT_DIR, "fl_mcp_pr_req.json")
+_RESP_PATH = os.path.join(_SCRIPT_DIR, "fl_mcp_pr_resp.json")
+
+
+def _write_resp(payload):
+    with open(_RESP_PATH, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh)
+
+
+def _export_notes():
+    notes = []
+    for idx in range(flp.score.noteCount):
+        n = flp.score.getNote(idx)
+        notes.append(
+            {
+                "number": int(n.number),
+                "time": int(n.time),
+                "length": int(n.length),
+                "velocity": round(float(n.velocity), 4),
+                "pan": round(float(n.pan), 4),
+                "color": int(n.color),
+            }
+        )
+    return notes
+
+
+def apply():
+    if not os.path.exists(_REQ_PATH):
+        _write_resp({"ok": True, "action": "noop", "notes": _export_notes()})
+        return
+
+    try:
+        with open(_REQ_PATH, "r", encoding="utf-8") as fh:
+            req = json.load(fh)
+        action = req.get("action", "get")
+
+        if action == "clear":
+            removed = flp.score.noteCount
+            flp.score.clearNotes()
+            _write_resp({"ok": True, "action": "clear", "cleared": removed})
+        elif action == "add":
+            if req.get("clear_first", False):
+                flp.score.clearNotes()
+            added = 0
+            for item in req.get("notes", []):
+                n = flp.Note()
+                n.number = int(item["number"])
+                n.time = int(item["time"])
+                n.length = int(item.get("length", 48))
+                n.velocity = float(item.get("velocity", 0.8))
+                n.pan = float(item.get("pan", 0.5))
+                n.color = int(item.get("color", 0))
+                flp.score.addNote(n)
+                added += 1
+            _write_resp(
+                {
+                    "ok": True,
+                    "action": "add",
+                    "added": added,
+                    "total_notes": flp.score.noteCount,
+                }
+            )
+        elif action == "get":
+            notes = _export_notes()
+            _write_resp({"ok": True, "action": "get", "note_count": len(notes), "notes": notes})
+        else:
+            _write_resp({"ok": False, "error": f"Unknown piano roll action: {action}"})
+    except Exception as exc:
+        _write_resp({"ok": False, "error": str(exc)})

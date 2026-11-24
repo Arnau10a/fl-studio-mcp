@@ -86,14 +86,15 @@ uv run python examples/demo_session.py
 
 ## MCP Capabilities
 
-### Tools (29)
+### Tools (32)
 
 | Category | Tools |
 | --- | --- |
 | **Diagnostics & Transport** | `fl_doctor`, `fl_list_midi_ports`, `fl_ping`, `fl_transport`, `fl_undo` |
-| **Channel Rack & Step Sequencer** | `fl_channels_list`, `fl_channel_set`, `fl_step_sequencer`, `fl_step_sequencer_get`, `fl_channel_editor`, `fl_midi_note` |
+| **Channel Rack & Step Sequencer** | `fl_channels_list`, `fl_channel_set` (with `#RRGGBB` color), `fl_step_sequencer`, `fl_step_sequencer_get`, `fl_channel_editor`, `fl_midi_note` |
+| **Piano Roll Scripting** | `fl_piano_roll_notes`, `fl_piano_roll_state`, `fl_piano_roll_clear` |
 | **Patterns & Playlist** | `fl_patterns`, `fl_playlist_list`, `fl_playlist_set` |
-| **Mixer, EQ & Plugins** | `fl_mixer_list`, `fl_mixer_set`, `fl_mixer_eq`, `fl_plugin_params`, `fl_plugin_set` |
+| **Mixer, EQ & Plugins** | `fl_mixer_list`, `fl_mixer_set` (color, stereo separation, arming), `fl_mixer_eq`, `fl_plugin_params`, `fl_plugin_set` |
 | **Win32 GUI & Sample Browser** | `fl_ui_focus`, `fl_add_plugin`, `fl_search_samples`, `fl_load_sample`, `fl_import_midi`, `fl_new_project`, `fl_delete_channel` |
 | **Hard Techno DSP & Feedback** | `ht_generate_midi`, `ht_generate_kick_sample`, `fl_analyze_audio` |
 
@@ -120,14 +121,22 @@ Install and open [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.htm
 
 *(Override port names anytime via `FL_MCP_IN_PORT` and `FL_MCP_OUT_PORT`.)*
 
-### 2. Install Dependencies & FL Studio Controller Script
+### 2. Install Dependencies & FL Studio Scripts
+
+One-command PowerShell installer (installs `uv` if needed, dependencies, Hardware + Piano Roll scripts, and runs `fl-studio-mcp-doctor`):
+
+```powershell
+.\install.ps1
+```
+
+Or manually:
 
 ```powershell
 uv sync
 uv run python scripts/install_fl_script.py
 ```
 
-This copies `fl_script/device_FLStudioMCP.py` into `~/Documents/Image-Line/FL Studio/Settings/Hardware/FLStudioMCP/`.
+This copies `fl_script/device_FLStudioMCP.py` into `~/Documents/Image-Line/FL Studio/Settings/Hardware/FLStudioMCP/` and `fl_script/FLStudioMCP_PianoRoll.pyscript` into `~/Documents/Image-Line/FL Studio/Settings/Piano roll scripts/`.
 
 ### 3. Configure FL Studio MIDI Settings
 

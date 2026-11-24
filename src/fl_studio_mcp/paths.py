@@ -35,5 +35,15 @@ def get_fl_script_source() -> Path:
     return get_project_root() / "fl_script" / "device_FLStudioMCP.py"
 
 
+def get_piano_roll_script_source() -> Path:
+    return get_project_root() / "fl_script" / "FLStudioMCP_PianoRoll.pyscript"
+
+
 def get_default_hardware_dir() -> Path:
     return Path.home() / "Documents" / "Image-Line" / "FL Studio" / "Settings" / "Hardware"
+
+
+def get_default_piano_roll_scripts_dir() -> Path:
+    return (
+        Path.home() / "Documents" / "Image-Line" / "FL Studio" / "Settings" / "Piano roll scripts"
+    )

@@ -16,7 +16,11 @@ from fl_studio_mcp.hard_techno import (
     generate_hard_techno_kick_wav,
     generate_hard_techno_midi,
 )
-from fl_studio_mcp.paths import get_output_dir, get_project_root
+from fl_studio_mcp.paths import (
+    get_default_piano_roll_scripts_dir,
+    get_output_dir,
+    get_project_root,
+)
 from fl_studio_mcp.win_auto import (
     VK_APPS,
     VK_CONTROL,
@@ -87,12 +91,13 @@ def fl_channel_set(
     name: str | None = None,
     volume: float | None = None,
     pan: float | None = None,
+    color: str | None = None,
     muted: bool | None = None,
     solo: bool | None = None,
     mixer_track: int | None = None,
     select: bool = False,
 ) -> dict[str, Any]:
-    """Update a Channel Rack channel's name, volume (0..1), pan (-1..1), mute, solo, or routing."""
+    """Update a Channel Rack channel's name, volume, pan, #RRGGBB color, mute/solo, or routing."""
     params: dict[str, Any] = {"index": index, "select": select}
     if name is not None:
         params["name"] = name
@@ -100,6 +105,8 @@ def fl_channel_set(
         params["volume"] = volume
     if pan is not None:
         params["pan"] = pan
+    if color is not None:
+        params["color"] = color
     if muted is not None:
         params["muted"] = muted
     if solo is not None:
@@ -173,12 +180,15 @@ def fl_mixer_set(
     name: str | None = None,
     volume: float | None = None,
     pan: float | None = None,
+    stereo_separation: float | None = None,
+    color: str | None = None,
     muted: bool | None = None,
     solo: bool | None = None,
+    armed: bool | None = None,
     route_to: int | None = None,
     route_active: bool = True,
 ) -> dict[str, Any]:
-    """Update a Mixer track's name, volume (0..1), pan (-1..1), mute, solo, or bus routing."""
+    """Update a Mixer track's name, volume, pan, stereo separation, color, mute/solo/arm, or bus."""
     params: dict[str, Any] = {"index": index, "route_active": route_active}
     if name is not None:
         params["name"] = name
@@ -186,10 +196,16 @@ def fl_mixer_set(
         params["volume"] = volume
     if pan is not None:
         params["pan"] = pan
+    if stereo_separation is not None:
+        params["stereo_separation"] = stereo_separation
+    if color is not None:
+        params["color"] = color
     if muted is not None:
         params["muted"] = muted
     if solo is not None:
         params["solo"] = solo
+    if armed is not None:
+        params["armed"] = armed
     if route_to is not None:
         params["route_to"] = route_to
     return bridge.call("mixer_set", params)
@@ -525,6 +541,76 @@ def ht_generate_kick_sample(
 def fl_analyze_audio(path: str) -> dict[str, Any]:
     """Analyze a WAV file for peak dBFS, RMS, crest factor, clipping, and spectral band balance."""
     return analyze_wav(path)
+
+
+def _run_piano_roll_script(index: int, payload: dict[str, Any]) -> dict[str, Any]:
+    pr_dir = get_default_piano_roll_scripts_dir()
+    req_path = pr_dir / "fl_mcp_pr_req.json"
+    resp_path = pr_dir / "fl_mcp_pr_resp.json"
+    if resp_path.exists():
+        resp_path.unlink()
+    pr_dir.mkdir(parents=True, exist_ok=True)
+    req_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    bridge.call("channel_set", {"index": index, "select": True})
+    bridge.call("ui_focus", {"window": "channel_rack"})
+    focus_fl_studio()
+    tap_vk(VK_F7)
+    time.sleep(0.25)
+    # Trigger the last-run Piano Roll script (Ctrl+Alt+Y)
+    hotkey(VK_CONTROL, VK_MENU, ord("Y"))
+
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        if resp_path.exists():
+            data: dict[str, Any] = json.loads(resp_path.read_text(encoding="utf-8"))
+            if not data.get("ok"):
+                raise RuntimeError(f"Piano Roll script error: {data.get('error', 'unknown')}")
+            return data
+        time.sleep(0.05)
+
+    raise TimeoutError(
+        "Timed out waiting for FLStudioMCP_PianoRoll.pyscript. "
+        "First time in FL Studio: open Piano Roll -> Tools -> Scripting -> FLStudioMCP_PianoRoll."
+    )
+
+
+@mcp.tool()
+def fl_piano_roll_notes(
+    index: int,
+    notes: list[dict[str, Any]],
+    clear_first: bool = False,
+) -> dict[str, Any]:
+    """Add notes directly to a channel's Piano Roll (each note: number, time, length, velocity).
+
+    Times and lengths are in FL Studio ticks (96 PPQ default, 24 = 16th note, 96 = quarter note).
+    """
+    if bridge.is_mock:
+        res: dict[str, Any] = bridge.mock_runtime.gui_piano_roll_notes(
+            index=index, notes=notes, clear_first=clear_first
+        )
+        return res
+    return _run_piano_roll_script(
+        index, {"action": "add", "notes": notes, "clear_first": clear_first}
+    )
+
+
+@mcp.tool()
+def fl_piano_roll_state(index: int) -> dict[str, Any]:
+    """Read all existing notes from a channel's Piano Roll."""
+    if bridge.is_mock:
+        res: dict[str, Any] = bridge.mock_runtime.gui_piano_roll_state(index=index)
+        return res
+    return _run_piano_roll_script(index, {"action": "get"})
+
+
+@mcp.tool()
+def fl_piano_roll_clear(index: int) -> dict[str, Any]:
+    """Clear all notes from a channel's Piano Roll."""
+    if bridge.is_mock:
+        res: dict[str, Any] = bridge.mock_runtime.gui_piano_roll_clear(index=index)
+        return res
+    return _run_piano_roll_script(index, {"action": "clear"})
 
 
 # --- MCP Resources ---

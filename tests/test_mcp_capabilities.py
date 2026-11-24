@@ -21,10 +21,16 @@ def test_root_shim_exports_same_mcp() -> None:
 def test_registered_tools_resources_and_prompts() -> None:
     tools = srv.mcp._tool_manager.list_tools()
     tool_names = {t.name for t in tools}
-    assert len(tool_names) == 29
-    assert {"fl_doctor", "fl_analyze_audio", "fl_ping", "ht_generate_kick_sample"}.issubset(
-        tool_names
-    )
+    assert len(tool_names) == 32
+    assert {
+        "fl_doctor",
+        "fl_analyze_audio",
+        "fl_ping",
+        "ht_generate_kick_sample",
+        "fl_piano_roll_notes",
+        "fl_piano_roll_state",
+        "fl_piano_roll_clear",
+    }.issubset(tool_names)
 
     resources = asyncio.run(srv.mcp.list_resources())
     uris = {str(r.uri) for r in resources}
@@ -62,6 +68,16 @@ def test_mock_mode_tools_and_resources(monkeypatch: pytest.MonkeyPatch, tmp_path
         midi_path.write_bytes(b"MThd\x00\x00\x00\x06\x00\x00\x00\x01\x01\xe0")
         imp = srv.fl_import_midi(0, str(midi_path))
         assert imp["imported"] is True
+
+        pr_add = srv.fl_piano_roll_notes(
+            0,
+            [{"number": 60, "time": 0, "length": 96, "velocity": 0.9}],
+            clear_first=True,
+        )
+        assert pr_add["total_notes"] == 1
+        pr_state = srv.fl_piano_roll_state(0)
+        assert pr_state["note_count"] == 1
+        assert srv.fl_piano_roll_clear(0)["cleared"] == 1
 
         deleted = srv.fl_delete_channel(0)
         assert deleted["channel_count_after"] == deleted["channel_count_before"] - 1

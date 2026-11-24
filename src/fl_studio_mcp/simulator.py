@@ -43,8 +43,10 @@ class SimChannel:
     mixer_track: int = 1
     selected: bool = False
     editor_open: bool = False
+    color: int = 0x5C6470
     grid: dict[int, int] = field(default_factory=dict)
     piano_roll_files: list[str] = field(default_factory=list)
+    piano_roll_notes: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -52,8 +54,11 @@ class SimMixerTrack:
     name: str
     volume: float = 0.8
     pan: float = 0.0
+    stereo_separation: float = 0.0
     muted: bool = False
     solo: bool = False
+    armed: bool = False
+    color: int = 0x5C6470
     peak_lr: float = 0.0
     routes: set[int] = field(default_factory=lambda: {0})
     fx_slots: dict[int, SimPlugin] = field(default_factory=dict)
@@ -266,6 +271,8 @@ class MockFLRuntime:
                 "setChannelVolume": lambda i, v: setattr(rt.channels[i], "volume", v),
                 "getChannelPan": lambda i: rt.channels[i].pan,
                 "setChannelPan": lambda i, p: setattr(rt.channels[i], "pan", p),
+                "getChannelColor": lambda i: rt.channels[i].color,
+                "setChannelColor": lambda i, c: setattr(rt.channels[i], "color", int(c)),
                 "isChannelMuted": lambda i: rt.channels[i].muted,
                 "muteChannel": lambda i: setattr(rt.channels[i], "muted", not rt.channels[i].muted),
                 "isChannelSolo": lambda i: rt.channels[i].solo,
@@ -317,6 +324,12 @@ class MockFLRuntime:
                 "setTrackVolume": lambda t, v: setattr(rt.mixer_tracks[t], "volume", v),
                 "getTrackPan": lambda t: rt.mixer_tracks[t].pan,
                 "setTrackPan": lambda t, p: setattr(rt.mixer_tracks[t], "pan", p),
+                "getTrackStereoSeparation": lambda t: rt.mixer_tracks[t].stereo_separation,
+                "setTrackStereoSeparation": lambda t, s: setattr(
+                    rt.mixer_tracks[t], "stereo_separation", s
+                ),
+                "getTrackColor": lambda t: rt.mixer_tracks[t].color,
+                "setTrackColor": lambda t, c: setattr(rt.mixer_tracks[t], "color", int(c)),
                 "isTrackMuted": lambda t: rt.mixer_tracks[t].muted,
                 "muteTrack": lambda t: setattr(
                     rt.mixer_tracks[t], "muted", not rt.mixer_tracks[t].muted
@@ -324,6 +337,10 @@ class MockFLRuntime:
                 "isTrackSolo": lambda t: rt.mixer_tracks[t].solo,
                 "soloTrack": lambda t: setattr(
                     rt.mixer_tracks[t], "solo", not rt.mixer_tracks[t].solo
+                ),
+                "isTrackArmed": lambda t: rt.mixer_tracks[t].armed,
+                "armTrack": lambda t: setattr(
+                    rt.mixer_tracks[t], "armed", not rt.mixer_tracks[t].armed
                 ),
                 "getTrackPeaks": lambda t, _mode=2: rt.mixer_tracks[t].peak_lr,
                 "setRouteTo": _set_route_to,
@@ -492,3 +509,45 @@ class MockFLRuntime:
             "channel_count_after": len(self.channels),
             "mock": True,
         }
+
+    def gui_piano_roll_notes(
+        self,
+        index: int,
+        notes: list[dict[str, Any]],
+        clear_first: bool = False,
+    ) -> dict[str, Any]:
+        ch = self.channels[index]
+        if clear_first:
+            ch.piano_roll_notes.clear()
+        for n in notes:
+            ch.piano_roll_notes.append(
+                {
+                    "number": int(n["number"]),
+                    "time": int(n["time"]),
+                    "length": int(n.get("length", 48)),
+                    "velocity": float(n.get("velocity", 0.8)),
+                    "pan": float(n.get("pan", 0.5)),
+                    "color": int(n.get("color", 0)),
+                }
+            )
+        return {
+            "index": index,
+            "added": len(notes),
+            "total_notes": len(ch.piano_roll_notes),
+            "mock": True,
+        }
+
+    def gui_piano_roll_state(self, index: int) -> dict[str, Any]:
+        ch = self.channels[index]
+        return {
+            "index": index,
+            "note_count": len(ch.piano_roll_notes),
+            "notes": list(ch.piano_roll_notes),
+            "mock": True,
+        }
+
+    def gui_piano_roll_clear(self, index: int) -> dict[str, Any]:
+        ch = self.channels[index]
+        removed = len(ch.piano_roll_notes)
+        ch.piano_roll_notes.clear()
+        return {"index": index, "cleared": removed, "mock": True}
