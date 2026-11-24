@@ -12,7 +12,7 @@ from typing import Any
 
 from fl_studio_mcp.paths import get_output_dir
 
-_windll = getattr(ctypes, "WinDLL", None)
+_windll: Any = getattr(ctypes, "WinDLL", None)
 user32: Any = (
     _windll("user32", use_last_error=True) if (sys.platform == "win32" and _windll) else None
 )
@@ -152,7 +152,7 @@ def type_text(text: str, delay_s: float = 0.012) -> None:
 def find_fl_studio_hwnd() -> int | None:
     u32 = _require_user32()
     matches: list[int] = []
-    winfunct = ctypes.WINFUNCTYPE
+    winfunct: Any = getattr(ctypes, "WINFUNCTYPE", None)
     enum_windows_proc = winfunct(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
     def _cb(hwnd: int, _lparam: int) -> bool:
