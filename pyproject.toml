@@ -1,0 +1,20 @@
+[project]
+name = "fl-studio-mcp"
+version = "0.1.0"
+description = "Bidirectional MCP server for controlling FL Studio via MIDI SysEx, Windows GUI automation, and Hard Techno MIDI/WAV synthesis."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Arnau", email = "arnausagratcor@gmail.com" }]
+requires-python = ">=3.10"
+keywords = ["fl-studio", "mcp", "midi", "sysex", "music-production", "hard-techno", "daw"]
+dependencies = [
+    "mcp>=2.3.0",
+    "mido>=1.3.3",
+    "numpy>=2.2.6",
+    "python-rtmidi>=1.5.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/Arnau10a/fl-studio-mcp"
+Repository = "https://github.com/Arnau10a/fl-studio-mcp"
+Issues = "https://github.com/Arnau10a/fl-studio-mcp/issues"
