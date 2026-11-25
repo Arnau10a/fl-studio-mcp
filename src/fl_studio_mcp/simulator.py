@@ -528,6 +528,8 @@ class MockFLRuntime:
                     "velocity": float(n.get("velocity", 0.8)),
                     "pan": float(n.get("pan", 0.5)),
                     "color": int(n.get("color", 0)),
+                    "slide": bool(n.get("slide", False)),
+                    "porta": bool(n.get("porta", False)),
                 }
             )
         return {

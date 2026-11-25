@@ -246,11 +246,35 @@ def _cmd_patterns(params):
     raise ValueError(f"Unknown pattern action: {action}")
 
 
-def _cmd_mixer_list(params):
-    start = int(params.get("start", 0))
-    end = min(mixer.trackCount(), int(params.get("end", 32)))
-    tracks = []
-    for t in range(start, end):
+def _safe_call(fn, *args, default=None):
+    """Call an FL Studio API function and return default if unsupported or failing."""
+    try:
+        return fn(*args)
+    except Exception:
+        return default
+
+
+def _read_mixer_track(t, include_fx=False):
+    """Read mixer track state safely across FL Studio API versions."""
+    sep_fn = getattr(mixer, "getTrackStereoSeparation", None) or getattr(
+        mixer, "getTrackStereoSep", None
+    )
+    sep = _safe_call(sep_fn, t, default=0.0) if sep_fn else 0.0
+    color_val = _safe_call(getattr(mixer, "getTrackColor", None), t, default=0)
+    state = {
+        "index": t,
+        "name": _safe_call(getattr(mixer, "getTrackName", None), t, default=f"Insert {t}"),
+        "volume": round(
+            float(_safe_call(getattr(mixer, "getTrackVolume", None), t, default=0.8)), 4
+        ),
+        "pan": round(float(_safe_call(getattr(mixer, "getTrackPan", None), t, default=0.0)), 4),
+        "stereo_separation": round(float(sep), 4),
+        "muted": bool(_safe_call(getattr(mixer, "isTrackMuted", None), t, default=False)),
+        "solo": bool(_safe_call(getattr(mixer, "isTrackSolo", None), t, default=False)),
+        "armed": bool(_safe_call(getattr(mixer, "isTrackArmed", None), t, default=False)),
+        "color": _format_color(int(color_val)),
+    }
+    if include_fx:
         fx = []
         for slot in range(10):
             try:
@@ -258,21 +282,16 @@ def _cmd_mixer_list(params):
                     fx.append({"slot": slot, "name": plugins.getPluginName(t, slot)})
             except Exception:
                 pass
-        tracks.append(
-            {
-                "index": t,
-                "name": mixer.getTrackName(t),
-                "volume": round(mixer.getTrackVolume(t), 4),
-                "pan": round(mixer.getTrackPan(t), 4),
-                "stereo_separation": round(mixer.getTrackStereoSeparation(t), 4),
-                "muted": bool(mixer.isTrackMuted(t)),
-                "solo": bool(mixer.isTrackSolo(t)),
-                "armed": bool(mixer.isTrackArmed(t)),
-                "color": _format_color(mixer.getTrackColor(t)),
-                "peak_lr": round(mixer.getTrackPeaks(t, 2), 4),
-                "effects": fx,
-            }
-        )
+        peak = _safe_call(getattr(mixer, "getTrackPeaks", None), t, 2, default=0.0)
+        state["peak_lr"] = round(float(peak), 4)
+        state["effects"] = fx
+    return state
+
+
+def _cmd_mixer_list(params):
+    start = int(params.get("start", 0))
+    end = min(mixer.trackCount(), int(params.get("end", 32)))
+    tracks = [_read_mixer_track(t, include_fx=True) for t in range(start, end)]
     return {"tracks": tracks}
 
 
@@ -285,7 +304,15 @@ def _cmd_mixer_set(params):
     if "pan" in params:
         mixer.setTrackPan(t, max(-1.0, min(1.0, float(params["pan"]))))
     if "stereo_separation" in params:
-        mixer.setTrackStereoSeparation(t, max(-1.0, min(1.0, float(params["stereo_separation"]))))
+        set_sep_fn = getattr(mixer, "setTrackStereoSeparation", None) or getattr(
+            mixer, "setTrackStereoSep", None
+        )
+        if set_sep_fn:
+            _safe_call(
+                set_sep_fn,
+                t,
+                max(-1.0, min(1.0, float(params["stereo_separation"]))),
+            )
     if "color" in params:
         mixer.setTrackColor(t, _parse_color(params["color"]))
     if "muted" in params:
@@ -304,17 +331,7 @@ def _cmd_mixer_set(params):
         dst = int(params["route_to"])
         val = 1 if params.get("route_active", True) else 0
         mixer.setRouteTo(t, dst, val)
-    return {
-        "index": t,
-        "name": mixer.getTrackName(t),
-        "volume": round(mixer.getTrackVolume(t), 4),
-        "pan": round(mixer.getTrackPan(t), 4),
-        "stereo_separation": round(mixer.getTrackStereoSeparation(t), 4),
-        "muted": bool(mixer.isTrackMuted(t)),
-        "solo": bool(mixer.isTrackSolo(t)),
-        "armed": bool(mixer.isTrackArmed(t)),
-        "color": _format_color(mixer.getTrackColor(t)),
-    }
+    return _read_mixer_track(t, include_fx=False)
 
 
 def _cmd_plugin_params(params):

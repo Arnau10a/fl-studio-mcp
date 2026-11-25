@@ -71,12 +71,23 @@ def test_mock_mode_tools_and_resources(monkeypatch: pytest.MonkeyPatch, tmp_path
 
         pr_add = srv.fl_piano_roll_notes(
             0,
-            [{"number": 60, "time": 0, "length": 96, "velocity": 0.9}],
+            [
+                {
+                    "number": 60,
+                    "time": 0,
+                    "length": 96,
+                    "velocity": 0.9,
+                    "slide": True,
+                    "porta": True,
+                }
+            ],
             clear_first=True,
         )
         assert pr_add["total_notes"] == 1
         pr_state = srv.fl_piano_roll_state(0)
         assert pr_state["note_count"] == 1
+        assert pr_state["notes"][0]["slide"] is True
+        assert pr_state["notes"][0]["porta"] is True
         assert srv.fl_piano_roll_clear(0)["cleared"] == 1
 
         deleted = srv.fl_delete_channel(0)

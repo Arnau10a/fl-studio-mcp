@@ -4,7 +4,17 @@ import json
 import os
 import flpianoroll as flp
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if "__file__" in globals():
+    _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+else:
+    _SCRIPT_DIR = os.path.join(
+        os.path.expanduser("~"),
+        "Documents",
+        "Image-Line",
+        "FL Studio",
+        "Settings",
+        "Piano roll scripts",
+    )
 _REQ_PATH = os.path.join(_SCRIPT_DIR, "fl_mcp_pr_req.json")
 _RESP_PATH = os.path.join(_SCRIPT_DIR, "fl_mcp_pr_resp.json")
 
@@ -26,6 +36,8 @@ def _export_notes():
                 "velocity": round(float(n.velocity), 4),
                 "pan": round(float(n.pan), 4),
                 "color": int(n.color),
+                "slide": bool(getattr(n, "slide", False)),
+                "porta": bool(getattr(n, "porta", False)),
             }
         )
     return notes
@@ -57,6 +69,10 @@ def apply():
                 n.velocity = float(item.get("velocity", 0.8))
                 n.pan = float(item.get("pan", 0.5))
                 n.color = int(item.get("color", 0))
+                if hasattr(n, "slide"):
+                    n.slide = bool(item.get("slide", False))
+                if hasattr(n, "porta"):
+                    n.porta = bool(item.get("porta", False))
                 flp.score.addNote(n)
                 added += 1
             _write_resp(

@@ -26,13 +26,23 @@ def _write_test_wav(path: Path, samples: np.ndarray, sr: int = 44100) -> Path:
 
 
 def test_generate_all_midi_styles(tmp_path: Path) -> None:
+    styles = (
+        "rumble_bass",
+        "acid_303",
+        "rave_stab",
+        "schranz_perc",
+        "house_chords",
+        "house_bass",
+        "trap_808",
+        "trap_hats",
+    )
     with patch.object(hard_techno, "MIDI_OUT_DIR", tmp_path):
-        for style in ("rumble_bass", "acid_303", "rave_stab", "schranz_perc"):
+        for style in styles:
             out = hard_techno.generate_hard_techno_midi(
                 style=style,
-                bpm=150.0,
+                bpm=140.0,
                 root_note="F",
-                scale="phrygian",
+                scale="minor",
                 bars=2,
                 seed=42,
             )

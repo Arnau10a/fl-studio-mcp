@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import ctypes.wintypes as wintypes
 import os
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -186,6 +188,21 @@ def focus_fl_studio() -> int:
     _send_vk(VK_MENU, True)
     time.sleep(0.15)
     return hwnd
+
+
+@contextlib.contextmanager
+def preserve_foreground() -> Iterator[int]:
+    """Focus FL Studio for a GUI action and restore the previous foreground window afterward."""
+    u32 = _require_user32()
+    prev_hwnd = int(u32.GetForegroundWindow() or 0)
+    fl_hwnd = focus_fl_studio()
+    try:
+        yield fl_hwnd
+    finally:
+        if prev_hwnd and prev_hwnd != fl_hwnd and u32.IsWindow(prev_hwnd):
+            _send_vk(VK_MENU, False)
+            u32.SetForegroundWindow(prev_hwnd)
+            _send_vk(VK_MENU, True)
 
 
 def get_foreground_info() -> tuple[int, str, str]:

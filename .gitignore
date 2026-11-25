@@ -13,6 +13,9 @@ wheels/
 # Generated MIDI and audio outputs
 output/
 
+# Commercial skill package (kept private outside public repo)
+skills/
+
 # Environment & OS files
 .env
 .env.*

@@ -31,9 +31,9 @@ from fl_studio_mcp.win_auto import (
     VK_F8,
     VK_MENU,
     VK_RETURN,
-    focus_fl_studio,
     get_foreground_info,
     hotkey,
+    preserve_foreground,
     search_samples,
     tap_vk,
     type_text,
@@ -341,13 +341,13 @@ def fl_add_plugin(
     if target == "mixer" and mixer_track is not None:
         focus_params["mixer_track"] = mixer_track
     bridge.call("ui_focus", focus_params)
-    focus_fl_studio()
-    tap_vk(VK_F8)
-    time.sleep(0.45)
-    type_text(name)
-    time.sleep(0.3)
-    tap_vk(VK_RETURN)
-    time.sleep(0.6)
+    with preserve_foreground():
+        tap_vk(VK_F8)
+        time.sleep(0.45)
+        type_text(name)
+        time.sleep(0.3)
+        tap_vk(VK_RETURN)
+        time.sleep(0.6)
     after = bridge.call("ping")
     return {
         "requested_plugin": name,
@@ -387,25 +387,25 @@ def fl_load_sample(
 
     before = bridge.call("ping")
     bridge.call("ui_focus", {"window": "browser"})
-    focus_fl_studio()
-    hotkey(VK_CONTROL, ord("F"))
-    time.sleep(0.25)
-    type_text(sample_name)
-    time.sleep(0.2)
-    tap_vk(VK_RETURN)
-    time.sleep(0.35)
-    tap_vk(VK_APPS)
-    time.sleep(0.25)
-    if not replace_selected:
-        tap_vk(VK_DOWN)
-        time.sleep(0.08)
-    else:
-        tap_vk(VK_DOWN)
-        time.sleep(0.08)
-        tap_vk(VK_DOWN)
-        time.sleep(0.08)
-    tap_vk(VK_RETURN)
-    time.sleep(0.4)
+    with preserve_foreground():
+        hotkey(VK_CONTROL, ord("F"))
+        time.sleep(0.25)
+        type_text(sample_name)
+        time.sleep(0.2)
+        tap_vk(VK_RETURN)
+        time.sleep(0.35)
+        tap_vk(VK_APPS)
+        time.sleep(0.25)
+        if not replace_selected:
+            tap_vk(VK_DOWN)
+            time.sleep(0.08)
+        else:
+            tap_vk(VK_DOWN)
+            time.sleep(0.08)
+            tap_vk(VK_DOWN)
+            time.sleep(0.08)
+        tap_vk(VK_RETURN)
+        time.sleep(0.4)
     after = bridge.call("ping")
     return {
         "sample": sample_info,
@@ -432,18 +432,18 @@ def fl_import_midi(
 
     bridge.call("channel_set", {"index": index, "select": True})
     bridge.call("ui_focus", {"window": "channel_rack"})
-    focus_fl_studio()
-    time.sleep(0.15)
-    tap_vk(VK_F7)
-    time.sleep(0.25)
-    hotkey(VK_CONTROL, ord("M"))
-    time.sleep(0.6)
-    type_text(str(resolved))
-    time.sleep(0.25)
-    tap_vk(VK_RETURN)
-    time.sleep(0.7)
-    tap_vk(VK_RETURN)
-    time.sleep(0.3)
+    with preserve_foreground():
+        time.sleep(0.15)
+        tap_vk(VK_F7)
+        time.sleep(0.25)
+        hotkey(VK_CONTROL, ord("M"))
+        time.sleep(0.6)
+        type_text(str(resolved))
+        time.sleep(0.25)
+        tap_vk(VK_RETURN)
+        time.sleep(0.7)
+        tap_vk(VK_RETURN)
+        time.sleep(0.3)
     return {"index": index, "midi_file": str(resolved), "imported": True}
 
 
@@ -454,18 +454,28 @@ def fl_new_project(discard_unsaved: bool = True) -> dict[str, Any]:
         res: dict[str, Any] = bridge.mock_runtime.gui_new_project()
         return res
 
-    main_hwnd = focus_fl_studio()
-    hotkey(VK_CONTROL, ord("N"))
-    time.sleep(0.5)
-    if discard_unsaved:
-        fg_hwnd, _title, cls = get_foreground_info()
-        if fg_hwnd and fg_hwnd != main_hwnd and cls in ("TMessageForm", "#32770"):
-            tap_vk(ord("N"))
-            time.sleep(0.5)
-            fg_hwnd2, _title2, cls2 = get_foreground_info()
-            if fg_hwnd2 and fg_hwnd2 != main_hwnd and cls2 == "#32770":
-                tap_vk(VK_ESCAPE)
-                time.sleep(0.3)
+    with preserve_foreground() as main_hwnd:
+        hotkey(VK_CONTROL, ord("N"))
+        time.sleep(0.6)
+        if discard_unsaved:
+            fg_hwnd, title, cls = get_foreground_info()
+            if fg_hwnd and fg_hwnd != main_hwnd:
+                if cls == "#32770" or "save as" in title.lower():
+                    tap_vk(VK_ESCAPE)
+                    time.sleep(0.3)
+                else:
+                    hotkey(VK_MENU, ord("N"))
+                    time.sleep(0.25)
+                    fg_hwnd2, title2, cls2 = get_foreground_info()
+                    if fg_hwnd2 and fg_hwnd2 != main_hwnd:
+                        tap_vk(ord("N"))
+                        time.sleep(0.4)
+                        fg_hwnd3, title3, cls3 = get_foreground_info()
+                        if fg_hwnd3 and fg_hwnd3 != main_hwnd and (
+                            cls3 == "#32770" or "save as" in title3.lower()
+                        ):
+                            tap_vk(VK_ESCAPE)
+                            time.sleep(0.3)
     info = bridge.call("ping")
     return {"new_project": True, "ping": info}
 
@@ -480,13 +490,13 @@ def fl_delete_channel(index: int) -> dict[str, Any]:
     before = bridge.call("ping")
     bridge.call("channel_set", {"index": index, "select": True})
     bridge.call("ui_focus", {"window": "channel_rack"})
-    main_hwnd = focus_fl_studio()
-    hotkey(VK_MENU, VK_DELETE)
-    time.sleep(0.45)
-    fg_hwnd, _title, cls = get_foreground_info()
-    if fg_hwnd and fg_hwnd != main_hwnd and cls in ("TMessageForm", "#32770"):
-        tap_vk(VK_RETURN)
-        time.sleep(0.4)
+    with preserve_foreground() as main_hwnd:
+        hotkey(VK_MENU, VK_DELETE)
+        time.sleep(0.45)
+        fg_hwnd, _title, cls = get_foreground_info()
+        if fg_hwnd and fg_hwnd != main_hwnd and cls in ("TMessageForm", "#32770"):
+            tap_vk(VK_RETURN)
+            time.sleep(0.4)
     after = bridge.call("ping")
     return {
         "deleted_index": index,
@@ -497,7 +507,16 @@ def fl_delete_channel(index: int) -> dict[str, Any]:
 
 @mcp.tool()
 def ht_generate_midi(
-    style: Literal["rumble_bass", "acid_303", "rave_stab", "schranz_perc"],
+    style: Literal[
+        "rumble_bass",
+        "acid_303",
+        "rave_stab",
+        "schranz_perc",
+        "house_chords",
+        "house_bass",
+        "trap_808",
+        "trap_hats",
+    ],
     bpm: float = 150.0,
     root_note: str = "F",
     scale: Literal["phrygian", "minor", "harmonic_minor", "locrian"] = "phrygian",
@@ -505,7 +524,7 @@ def ht_generate_midi(
     seed: int | None = None,
     filename: str | None = None,
 ) -> dict[str, str]:
-    """Generate a Hard Techno MIDI file (.mid) ready to drop into FL Studio's Piano Roll."""
+    """Generate a genre MIDI file (.mid) ready to drop into FL Studio's Piano Roll."""
     path = generate_hard_techno_midi(
         style=style,
         bpm=bpm,
@@ -554,20 +573,20 @@ def _run_piano_roll_script(index: int, payload: dict[str, Any]) -> dict[str, Any
 
     bridge.call("channel_set", {"index": index, "select": True})
     bridge.call("ui_focus", {"window": "channel_rack"})
-    focus_fl_studio()
-    tap_vk(VK_F7)
-    time.sleep(0.25)
-    # Trigger the last-run Piano Roll script (Ctrl+Alt+Y)
-    hotkey(VK_CONTROL, VK_MENU, ord("Y"))
+    with preserve_foreground():
+        tap_vk(VK_F7)
+        time.sleep(0.25)
+        # Trigger the last-run Piano Roll script (Ctrl+Alt+Y)
+        hotkey(VK_CONTROL, VK_MENU, ord("Y"))
 
-    deadline = time.monotonic() + 3.0
-    while time.monotonic() < deadline:
-        if resp_path.exists():
-            data: dict[str, Any] = json.loads(resp_path.read_text(encoding="utf-8"))
-            if not data.get("ok"):
-                raise RuntimeError(f"Piano Roll script error: {data.get('error', 'unknown')}")
-            return data
-        time.sleep(0.05)
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            if resp_path.exists():
+                data: dict[str, Any] = json.loads(resp_path.read_text(encoding="utf-8"))
+                if not data.get("ok"):
+                    raise RuntimeError(f"Piano Roll script error: {data.get('error', 'unknown')}")
+                return data
+            time.sleep(0.05)
 
     raise TimeoutError(
         "Timed out waiting for FLStudioMCP_PianoRoll.pyscript. "
@@ -584,6 +603,7 @@ def fl_piano_roll_notes(
     """Add notes directly to a channel's Piano Roll (each note: number, time, length, velocity).
 
     Times and lengths are in FL Studio ticks (96 PPQ default, 24 = 16th note, 96 = quarter note).
+    Optional booleans: ``slide`` (FL Studio slide note) and ``porta`` (portamento).
     """
     if bridge.is_mock:
         res: dict[str, Any] = bridge.mock_runtime.gui_piano_roll_notes(

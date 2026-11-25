@@ -133,9 +133,97 @@ def generate_hard_techno_midi(
             if s % 8 == 4:
                 events.append((t, "note_on", 39, 118))
                 events.append((t + 90, "note_off", 39, 0))
+
+    elif style == "house_chords":
+        base = _parse_root(root_note, 3)
+        stab_steps = [0, 3, 6, 10, 14]
+        prog_degrees = [0, 3, 4, 0]
+        for bar in range(bars):
+            deg = prog_degrees[bar % len(prog_degrees)]
+            root_bar = base + intervals[deg % len(intervals)]
+            third = intervals[(deg + 2) % len(intervals)] + (
+                12 if deg + 2 >= len(intervals) else 0
+            )
+            fifth = intervals[(deg + 4) % len(intervals)] + (
+                12 if deg + 4 >= len(intervals) else 0
+            )
+            seventh = intervals[(deg + 6) % len(intervals)] + (
+                12 if deg + 6 >= len(intervals) else 0
+            )
+            chord = [
+                root_bar,
+                base + third,
+                base + fifth,
+                base + seventh,
+            ]
+            for s_in_bar in stab_steps:
+                t = (bar * 16 + s_in_bar) * step_ticks
+                dur = int(step_ticks * (1.2 if s_in_bar in (3, 14) else 0.9))
+                vel = rng.randint(84, 108)
+                for n in chord:
+                    events.append((t, "note_on", n, vel))
+                    events.append((t + dur, "note_off", n, 0))
+
+    elif style == "house_bass":
+        base = _parse_root(root_note, 2)
+        bass_steps = [2, 3, 6, 10, 11, 14]
+        for bar in range(bars):
+            for idx_s, s_in_bar in enumerate(bass_steps):
+                t = (bar * 16 + s_in_bar) * step_ticks
+                deg = 0 if idx_s % 3 != 2 else 4
+                octave = 12 if (s_in_bar in (3, 11) and rng.random() < 0.45) else 0
+                note = base + intervals[deg % len(intervals)] + octave
+                vel = rng.randint(95, 118) if s_in_bar in (2, 10) else rng.randint(76, 98)
+                dur = int(step_ticks * 0.8)
+                events.append((t, "note_on", note, vel))
+                events.append((t + dur, "note_off", note, 0))
+
+    elif style == "trap_808":
+        base = _parse_root(root_note, 1)
+        hit_steps = [0, 6, 10, 14]
+        for bar in range(bars):
+            for s_in_bar in hit_steps:
+                if bar % 2 == 1 and s_in_bar == 14 and rng.random() < 0.5:
+                    continue
+                t = (bar * 16 + s_in_bar) * step_ticks
+                deg = 0 if s_in_bar in (0, 6) else (3 if bar % 2 == 0 else 4)
+                octave = 12 if (s_in_bar == 14 and rng.random() < 0.35) else 0
+                note = base + intervals[deg % len(intervals)] + octave
+                vel = 122 if s_in_bar == 0 else rng.randint(98, 116)
+                dur = int(step_ticks * (3.0 if s_in_bar == 0 else 1.8))
+                events.append((t, "note_on", note, vel))
+                events.append((t + dur, "note_off", note, 0))
+
+    elif style == "trap_hats":
+        hat_note = 42  # F#3 closed hi-hat
+        for bar in range(bars):
+            bar_start = bar * 16 * step_ticks
+            for step_8th in range(0, 16, 2):
+                t = bar_start + step_8th * step_ticks
+                if step_8th == 14:
+                    # 1/6-step rapid triplet roll at end of bar with velocity ramp
+                    sub_ticks = step_ticks // 3
+                    for r in range(6):
+                        vel = min(124, 64 + r * 11)
+                        rt = t + r * sub_ticks
+                        events.append((rt, "note_on", hat_note, vel))
+                        events.append((rt + max(20, sub_ticks - 10), "note_off", hat_note, 0))
+                elif step_8th == 6 and bar % 2 == 1:
+                    # 1/3-step triplet roll mid-bar
+                    sub_ticks = (step_ticks * 2) // 3
+                    for r in range(3):
+                        vel = 82 + r * 12
+                        rt = t + r * sub_ticks
+                        events.append((rt, "note_on", hat_note, vel))
+                        events.append((rt + max(20, sub_ticks - 15), "note_off", hat_note, 0))
+                else:
+                    vel = rng.randint(85, 108) if step_8th % 4 == 0 else rng.randint(65, 86)
+                    events.append((t, "note_on", hat_note, vel))
+                    events.append((t + int(step_ticks * 0.75), "note_off", hat_note, 0))
     else:
         raise ValueError(
-            f"Unknown style '{style}'. Choose: rumble_bass, acid_303, rave_stab, schranz_perc"
+            f"Unknown style '{style}'. Choose: rumble_bass, acid_303, rave_stab, "
+            "schranz_perc, house_chords, house_bass, trap_808, trap_hats"
         )
 
     events.sort(key=lambda e: (e[0], 0 if e[1] == "note_off" else 1))
